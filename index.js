@@ -1,9 +1,13 @@
 import { chromium } from "playwright";
+import { google } from "googleapis";
 
 const pageUrl = "https://www.cnn.com/markets/fear-and-greed";
 const dataUrl = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
 
-async function main() {
+const sheetId = process.env.GOOGLE_SHEET_ID;
+const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+
+async function getFearGreed() {
   const browser = await chromium.launch({
     headless: true
   });
@@ -21,7 +25,6 @@ async function main() {
 
   await page.waitForTimeout(5000);
 
-  // 如果有 CNN consent popup，就点 Agree
   const agreeButton = page.getByRole("button", { name: "Agree" });
 
   try {
@@ -33,7 +36,6 @@ async function main() {
     console.log("No CNN consent popup detected.");
   }
 
-  // 在浏览器页面环境里请求 CNN graphdata
   const fgData = await page.evaluate(async (url) => {
     const res = await fetch(url);
     if (!res.ok) {
@@ -42,29 +44,90 @@ async function main() {
     return await res.json();
   }, dataUrl);
 
-  const fearGreedScore = Number(fgData.fear_and_greed.score);
+  await browser.close();
+
+  const score = Number(Number(fgData.fear_and_greed.score).toFixed(2));
   const rawLabel = fgData.fear_and_greed.rating || "";
 
-  const fearGreedLabel =
-    rawLabel
-      .split("_")
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(" ");
+  const label = rawLabel
+    .split("_")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 
-  console.log("FearGreed Score:", fearGreedScore);
-  console.log("FearGreed Label:", fearGreedLabel);
-  console.log("FearGreed Source:", "CNN Fear & Greed Index");
-  console.log("FearGreed URL:", pageUrl);
+  return {
+    score,
+    label,
+    source: "CNN Fear & Greed Index",
+    url: pageUrl,
+    status: "OK"
+  };
+}
 
-  if (
-    Number.isNaN(fearGreedScore) ||
-    fearGreedScore < 0 ||
-    fearGreedScore > 100
-  ) {
-    throw new Error("Invalid Fear & Greed score.");
+async function appendToGoogleSheet(row) {
+  if (!sheetId) {
+    throw new Error("Missing GOOGLE_SHEET_ID secret.");
   }
 
-  await browser.close();
+  if (!serviceAccountJson) {
+    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_JSON secret.");
+  }
+
+  const credentials = JSON.parse(serviceAccountJson);
+
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+  });
+
+  const sheets = google.sheets({
+    version: "v4",
+    auth
+  });
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: sheetId,
+    range: "Daily_Data!A:N",
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [row]
+    }
+  });
+}
+
+async function main() {
+  const now = new Date();
+
+  const fg = await getFearGreed();
+
+  console.log("FearGreed Score:", fg.score);
+  console.log("FearGreed Label:", fg.label);
+  console.log("FearGreed Source:", fg.source);
+  console.log("FearGreed URL:", fg.url);
+
+  const row = [
+    now.toISOString(),
+
+    "", // VIX_Current
+    "", // VIX_PreviousClose
+    "", // VIX_Source
+    "", // VIX_Status
+
+    "", // Nasdaq100_PE
+    "", // PE_Source
+    "", // PE_Status
+
+    fg.score,
+    fg.source,
+    fg.status,
+
+    "", // Market_Score
+    "", // Signal
+    ""  // AI_Analysis
+  ];
+
+  await appendToGoogleSheet(row);
+
+  console.log("Google Sheet row appended successfully.");
 }
 
 main().catch(error => {
