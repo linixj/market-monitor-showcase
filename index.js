@@ -5,6 +5,7 @@ const pageUrl = "https://www.cnn.com/markets/fear-and-greed";
 const dataUrl = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
 // const peUrl = "https://www.gurufocus.com/economic_indicators/6778/nasdaq-100-pe-ratio";
 const peUrl = "https://worldperatio.com/index/nasdaq-100/";
+const vixUrl = "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX";
 
 const sheetId = process.env.GOOGLE_SHEET_ID;
 const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -114,6 +115,41 @@ async function getNasdaq100PE() {
   };
 }
 
+async function getVIX() {
+  const response = await fetch(vixUrl);
+
+  if (!response.ok) {
+    throw new Error(`Yahoo VIX request failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const meta = data.chart.result[0].meta;
+
+  const current = Number(Number(meta.regularMarketPrice).toFixed(2));
+  const previousClose = Number(Number(meta.previousClose).toFixed(2));
+
+  if (
+    Number.isNaN(current) ||
+    Number.isNaN(previousClose) ||
+    current < 8 ||
+    current > 100
+  ) {
+    return {
+      current: null,
+      previousClose: null,
+      source: "Yahoo Finance ^VIX",
+      status: "INVALID"
+    };
+  }
+
+  return {
+    current,
+    previousClose,
+    source: "Yahoo Finance ^VIX",
+    status: "OK"
+  };
+}
+
 async function appendToGoogleSheet(row) {
   if (!sheetId) {
     throw new Error("Missing GOOGLE_SHEET_ID secret.");
@@ -150,6 +186,7 @@ async function main() {
 
   const fg = await getFearGreed();
   const pe = await getNasdaq100PE();
+  const vix = await getVIX();
 
   console.log("Nasdaq100 PE:", pe.value);
   console.log("PE Source:", pe.source);
@@ -159,13 +196,17 @@ async function main() {
   console.log("FearGreed Source:", fg.source);
   console.log("FearGreed URL:", fg.url);
 
+  console.log("VIX Current:", vix.current);
+  console.log("VIX Previous Close:", vix.previousClose);
+  console.log("VIX Source:", vix.source);
+
   const row = [
     now.toISOString(),
 
-    "", // VIX_Current
-    "", // VIX_PreviousClose
-    "", // VIX_Source
-    "", // VIX_Status
+    vix.current,
+    vix.previousClose,
+    vix.source,
+    vix.status,
 
     pe.value,
     pe.source,
