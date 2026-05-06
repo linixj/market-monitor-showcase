@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { google } from "googleapis";
 import nodemailer from "nodemailer";
 import { analyzeMarket } from "./rules.js";
+import axios from "axios";
 
 const pageUrl = "https://www.cnn.com/markets/fear-and-greed";
 const dataUrl = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
@@ -276,6 +277,50 @@ Details:
 });
 }
 
+async function sendTelegram({ vix, pe, fg, analysis }) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatIds = process.env.TELEGRAM_CHAT_IDS;
+
+  if (!botToken || !chatIds) {
+    console.log("Telegram secrets not configured.");
+    return;
+  }
+
+  const message = `
+Daily Market Signal
+
+VIX Current: ${vix.current}
+VIX Previous Close: ${vix.previousClose}
+
+Nasdaq 100 PE: ${pe.value}
+
+Fear & Greed: ${fg.score} (${fg.label})
+
+Score: ${analysis.score}
+Signal: ${analysis.signal}
+
+Analysis:
+${analysis.overallAnalysis}
+`;
+
+  const ids = chatIds
+    .split(",")
+    .map(id => id.trim())
+    .filter(Boolean);
+
+  for (const chatId of ids) {
+    await axios.post(
+      `https://api.telegram.org/bot${botToken}/sendMessage`,
+      {
+        chat_id: chatId,
+        text: message
+      }
+    );
+
+    console.log(`Telegram sent to ${chatId}`);
+  }
+}
+
 async function main() {
   const now = new Date();
 
@@ -327,6 +372,9 @@ async function main() {
 
   await sendEmail({ vix, pe, fg, analysis });
   console.log("Email sent successfully.");
+
+  await sendTelegram({ vix, pe, fg, analysis });
+  console.log("Telegram bot sent successfully.");
 }
 
 main().catch(error => {
