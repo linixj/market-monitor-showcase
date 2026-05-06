@@ -13,32 +13,43 @@ async function main() {
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
   });
 
-  page.on("console", msg => {
-    console.log("PAGE LOG:", msg.text());
-  });
-
-  page.on("response", response => {
-    const status = response.status();
-    const resUrl = response.url();
-
-    if (status >= 400) {
-      console.log("HTTP ERROR:", status, resUrl);
-    }
-  });
-
   await page.goto(url, {
     waitUntil: "domcontentloaded",
     timeout: 60000
   });
 
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(5000);
 
-  console.log("Final URL:", page.url());
-  console.log("Title:", await page.title());
+  // Click CNN consent popup if it appears
+  const agreeButton = page.getByRole("button", { name: "Agree" });
+
+  if (await agreeButton.isVisible().catch(() => false)) {
+    await agreeButton.click();
+    await page.waitForTimeout(3000);
+  }
 
   const bodyText = await page.locator("body").innerText();
-  console.log("Body text preview:");
-  console.log(bodyText.slice(0, 1000));
+
+  console.log("BODY TEXT PREVIEW:");
+  console.log(bodyText.slice(0, 2000));
+
+  // Extract score: usually appears around Fear & Greed gauge
+  const scoreMatch = bodyText.match(/\b(Extreme Fear|Fear|Neutral|Greed|Extreme Greed)\b[\s\S]{0,200}?\b(\d{1,3})\b/);
+
+  let fearGreedScore = null;
+  let fearGreedLabel = null;
+
+  if (scoreMatch) {
+    fearGreedLabel = scoreMatch[1];
+    fearGreedScore = Number(scoreMatch[2]);
+  } else {
+    // fallback: from screenshot text structure, current score often appears as standalone number near 0-100 scale
+    const numberMatches = bodyText.match(/\b([0-9]{1,3})\b/g);
+    console.log("Number candidates:", numberMatches);
+  }
+
+  console.log("FearGreed Score:", fearGreedScore);
+  console.log("FearGreed Label:", fearGreedLabel);
 
   await page.screenshot({
     path: "cnn-fear-greed.png",
