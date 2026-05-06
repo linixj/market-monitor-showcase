@@ -247,7 +247,7 @@ async function main() {
   const fg = await getFearGreed();
   const pe = await getNasdaq100PE();
   const vix = await getVIX();
-  const analysis = analyzeMarket(vix, pe, fg);
+  const analysis = analyzeMarket({ vix, pe, fg });
 
   console.log("Nasdaq100 PE:", pe.value);
   console.log("PE Source:", pe.source);
