@@ -3,14 +3,11 @@ import { chromium } from "playwright";
 const url = "https://www.cnn.com/markets/fear-and-greed";
 
 async function main() {
+  const browser = await chromium.launch({
+    headless: true
+  });
 
-  const browser =
-    await chromium.launch({
-      headless: true
-    });
-
-  const page =
-    await browser.newPage();
+  const page = await browser.newPage();
 
   await page.goto(url, {
     waitUntil: "networkidle",
@@ -22,12 +19,15 @@ async function main() {
     fullPage: true
   });
 
-  console.log("Screenshot saved.");
+  const title = await page.title();
+
+  console.log("Page title:", title);
+  console.log("Screenshot saved: cnn-fear-greed.png");
 
   await browser.close();
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error("Error:", error);
   process.exit(1);
 });
