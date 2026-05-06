@@ -152,6 +152,42 @@ async function getVIX() {
   };
 }
 
+async function getEmailRecipients() {
+  const credentials = JSON.parse(serviceAccountJson);
+
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+  });
+
+  const sheets = google.sheets({
+    version: "v4",
+    auth
+  });
+
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: sheetId,
+    range: "Recipients!A:C"
+  });
+
+  const rows = response.data.values || [];
+
+  // skip header row
+  const recipients = rows
+    .slice(1)
+    .filter(row => {
+      const email = row[0];
+      const active = String(row[2] || "").toUpperCase();
+      return email && active === "TRUE";
+    })
+    .map(row => row[0].trim());
+
+  if (recipients.length === 0) {
+    throw new Error("No active email recipients found in Recipients tab.");
+  }
+
+  return recipients;
+}
 
 async function appendToGoogleSheet(row) {
   if (!sheetId) {
@@ -223,8 +259,7 @@ Details:
 - ${analysis.fgAnalysis}
 `;
 
-  const recipients =
-  process.env.EMAIL_RECIPIENTS || gmailUser;
+  const recipients = await getEmailRecipients();
 
   await transporter.sendMail({
   from: gmailUser,
@@ -233,7 +268,7 @@ Details:
   to: gmailUser,
 
   // 其他人放 BCC
-  bcc: recipients,
+  bcc: recipients.join(","),
 
   subject: `Daily Market Signal - ${analysis.signal}`,
 
