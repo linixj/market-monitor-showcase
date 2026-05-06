@@ -3,6 +3,7 @@ import { google } from "googleapis";
 
 const pageUrl = "https://www.cnn.com/markets/fear-and-greed";
 const dataUrl = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
+const peUrl = "https://www.gurufocus.com/economic_indicators/6778/nasdaq-100-pe-ratio";
 
 const sheetId = process.env.GOOGLE_SHEET_ID;
 const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -63,7 +64,6 @@ async function getFearGreed() {
   };
 }
 
-const peUrl = "https://www.gurufocus.com/economic_indicators/6778/nasdaq-100-pe-ratio";
 
 async function getNasdaq100PE() {
   const browser = await chromium.launch({ headless: true });
