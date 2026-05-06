@@ -1,5 +1,7 @@
 import { chromium } from "playwright";
 import { google } from "googleapis";
+import nodemailer from "nodemailer";
+import { analyzeMarket } from "./rules.js";
 
 const pageUrl = "https://www.cnn.com/markets/fear-and-greed";
 const dataUrl = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
@@ -258,6 +260,53 @@ async function appendToGoogleSheet(row) {
   });
 }
 
+
+async function sendEmail({ vix, pe, fg, analysis }) {
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
+
+  if (!gmailUser || !gmailAppPassword) {
+    throw new Error("Missing Gmail secrets.");
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: gmailUser,
+      pass: gmailAppPassword
+    }
+  });
+
+  const body = `
+Daily Market Signal
+
+VIX Current: ${vix.current}
+VIX Previous Close: ${vix.previousClose}
+
+Nasdaq 100 PE: ${pe.value}
+
+Fear & Greed: ${fg.score} (${fg.label})
+
+Score: ${analysis.score}
+Signal: ${analysis.signal}
+
+Analysis:
+${analysis.overallAnalysis}
+
+Details:
+- ${analysis.vixAnalysis}
+- ${analysis.peAnalysis}
+- ${analysis.fgAnalysis}
+`;
+
+  await transporter.sendMail({
+    from: gmailUser,
+    to: gmailUser,
+    subject: `Daily Market Signal - ${analysis.signal}`,
+    text: body
+  });
+}
+
 async function main() {
   const now = new Date();
 
@@ -306,6 +355,9 @@ async function main() {
   await appendToGoogleSheet(row);
 
   console.log("Google Sheet row appended successfully.");
+
+  await sendEmail({ vix, pe, fg, analysis });
+  console.log("Email sent successfully.");
 }
 
 main().catch(error => {
