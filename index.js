@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 
-const url = "https://www.cnn.com/markets/fear-and-greed";
+const pageUrl = "https://www.cnn.com/markets/fear-and-greed";
+const dataUrl = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
 
 async function main() {
   const browser = await chromium.launch({
@@ -13,15 +14,14 @@ async function main() {
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
   });
 
-  await page.goto(url, {
+  await page.goto(pageUrl, {
     waitUntil: "domcontentloaded",
     timeout: 60000
   });
 
-  // 等页面主要内容加载
   await page.waitForTimeout(5000);
 
-  // 如果 CNN consent popup 出现，就点 Agree；没有就继续
+  // 如果有 CNN consent popup，就点 Agree
   const agreeButton = page.getByRole("button", { name: "Agree" });
 
   try {
@@ -33,44 +33,35 @@ async function main() {
     console.log("No CNN consent popup detected.");
   }
 
-  const bodyText = await page.locator("body").innerText();
-
-  // Label: 例如 “Greed is driving the US market”
-  const labelMatch = bodyText.match(
-    /\b(Extreme Fear|Extreme Greed|Fear|Neutral|Greed)\s+is driving the US market\b/
-  );
-
-  const fearGreedLabel = labelMatch ? labelMatch[1] : null;
-
-  // Score: 优先抓 label 附近的数字；如果失败，再抓 Last updated 前后的数字
-  let fearGreedScore = null;
-
-  if (fearGreedLabel) {
-    const labelIndex = bodyText.indexOf(`${fearGreedLabel} is driving the US market`);
-    const nearbyText = bodyText.slice(Math.max(0, labelIndex - 500), labelIndex + 500);
-
-    const candidates = [...nearbyText.matchAll(/\b(\d{1,3})\b/g)]
-      .map(match => Number(match[1]))
-      .filter(num => num >= 0 && num <= 100);
-
-    if (candidates.length > 0) {
-      // 当前 score 通常是 label 附近最大的 0-100 数字
-      fearGreedScore = Math.max(...candidates);
+  // 在浏览器页面环境里请求 CNN graphdata
+  const fgData = await page.evaluate(async (url) => {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`CNN graphdata request failed: ${res.status}`);
     }
-  }
+    return await res.json();
+  }, dataUrl);
 
-  if (fearGreedScore === null) {
-    const fallbackMatch = bodyText.match(/Last updated[\s\S]{0,300}?\b(\d{1,3})\b/);
-    fearGreedScore = fallbackMatch ? Number(fallbackMatch[1]) : null;
-  }
+  const fearGreedScore = Number(fgData.fear_and_greed.score);
+  const rawLabel = fgData.fear_and_greed.rating || "";
+
+  const fearGreedLabel =
+    rawLabel
+      .split("_")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
 
   console.log("FearGreed Score:", fearGreedScore);
   console.log("FearGreed Label:", fearGreedLabel);
+  console.log("FearGreed Source:", "CNN Fear & Greed Index");
+  console.log("FearGreed URL:", pageUrl);
 
-  if (fearGreedScore === null || fearGreedLabel === null) {
-    console.log("Body text preview:");
-    console.log(bodyText.slice(0, 2000));
-    throw new Error("Failed to extract Fear & Greed score or label.");
+  if (
+    Number.isNaN(fearGreedScore) ||
+    fearGreedScore < 0 ||
+    fearGreedScore > 100
+  ) {
+    throw new Error("Invalid Fear & Greed score.");
   }
 
   await browser.close();
