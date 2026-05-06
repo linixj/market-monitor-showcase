@@ -94,15 +94,15 @@ async function getNasdaq100PE() {
   // PE Ratio: 34.95
   // 或 Current PE Ratio 34.95
   const match = bodyText.match(
-    /(PE Ratio|Current PE Ratio)[^0-9]{0,20}([0-9]+\.[0-9]+)/i
-  );
+    /P\/E Ratio:\s*([0-9]+(?:\.[0-9]+)?)/i
+    );
 
   if (!match) {
     await browser.close();
     throw new Error("Failed to extract Nasdaq100 PE.");
   }
 
-  const pe = Number(match[2]);
+  const pe = Number(match[1]);
 
   await browser.close();
 
