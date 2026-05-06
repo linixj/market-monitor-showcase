@@ -3,7 +3,8 @@ import { google } from "googleapis";
 
 const pageUrl = "https://www.cnn.com/markets/fear-and-greed";
 const dataUrl = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
-const peUrl = "https://www.gurufocus.com/economic_indicators/6778/nasdaq-100-pe-ratio";
+// const peUrl = "https://www.gurufocus.com/economic_indicators/6778/nasdaq-100-pe-ratio";
+const peUrl = "https://worldperatio.com/index/nasdaq-100/";
 
 const sheetId = process.env.GOOGLE_SHEET_ID;
 const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -66,7 +67,9 @@ async function getFearGreed() {
 
 
 async function getNasdaq100PE() {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true
+  });
 
   const page = await browser.newPage({
     viewport: { width: 1400, height: 1200 },
@@ -83,22 +86,29 @@ async function getNasdaq100PE() {
 
   const bodyText = await page.locator("body").innerText();
 
-  const match = bodyText.match(/Nasdaq 100 PE Ratio was\s+([0-9.]+)/i);
+  // 调试用
+  console.log("WorldPEratio body preview:");
+  console.log(bodyText.slice(0, 2000));
+
+  // 匹配类似：
+  // PE Ratio: 34.95
+  // 或 Current PE Ratio 34.95
+  const match = bodyText.match(
+    /(PE Ratio|Current PE Ratio)[^0-9]{0,20}([0-9]+\.[0-9]+)/i
+  );
 
   if (!match) {
-    console.log("GuruFocus body preview:");
-    console.log(bodyText.slice(0, 2000));
     await browser.close();
-    throw new Error("Failed to extract Nasdaq 100 PE from GuruFocus.");
+    throw new Error("Failed to extract Nasdaq100 PE.");
   }
 
-  const pe = Number(match[1]);
+  const pe = Number(match[2]);
 
   await browser.close();
 
   return {
     value: pe,
-    source: "GuruFocus Nasdaq 100 PE Ratio",
+    source: "WorldPEratio Nasdaq 100 PE",
     url: peUrl,
     status: "OK"
   };
