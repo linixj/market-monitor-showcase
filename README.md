@@ -4,7 +4,14 @@ An automated market monitoring pipeline that collects multiple public market ind
 
 This project was built as a practical automation system for tracking broad market risk and opportunity signals, rather than as a static demo.
 
+
 ---
+
+## Disclaimer
+
+This project is for educational and portfolio purposes only. It is not financial advice, investment advice, or a trading recommendation.
+
+----
 
 ## Why I Built This
 
@@ -103,9 +110,11 @@ The project uses a transparent rules-based model rather than a black-box predict
 | Score Range            | Signal                                    |
 | ---------------------- | ----------------------------------------- |
 | score >= 3             | `STRONG_BUY`                              |
-| score >= 1             | `BUY_DCA`                                 |
-| score between -1 and 0 | `HOLD` / `CAUTION` depending on threshold |
+| 1 <= score < 3         | `BUY_DCA`                                 |
+| score = 0              | `HOLD`                                    |
+| -3 < score <= -1       |  `CAUTION`                                |
 | score <= -3            | `TAKE_PROFIT`                             |
+
 
 ## Notifications
 
