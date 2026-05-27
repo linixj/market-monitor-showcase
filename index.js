@@ -265,10 +265,10 @@ Details:
   await transporter.sendMail({
   from: gmailUser,
 
-  // 你的邮箱作为主收件人
+ 
   to: gmailUser,
 
-  // 其他人放 BCC
+
   bcc: recipients.join(","),
 
   subject: `Daily Market Signal - ${analysis.signal}`,
